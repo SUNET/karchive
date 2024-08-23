@@ -1,5 +1,5 @@
+import gzip
 import os
-from urllib.parse import unquote
 
 from flask import Flask, request
 from git import Repo
@@ -8,56 +8,62 @@ app = Flask(__name__)
 GIT_REPO = "./repo"
 
 
-def git_check_repo(repo_path):
-    errstr = []
+class GitError(Exception):
+    pass
 
-    if not os.path.exists(repo_path):
-        errstr.append("Repository does not exist")
-        return errstr
+
+def git_check_repo(repopath):
+    repo = None
+
+    if not os.path.exists(repopath):
+        raise GitError("Repository does not exist")
 
     try:
-        repo = Repo(repo_path)
+        repo = Repo(repopath)
 
         if repo.is_dirty():
-            errstr.append("Repository is dirty")
+            raise GitError("Repository is dirty")
     except Exception as e:
-        errstr.append(str(e))
-        return errstr
+        raise GitError(str(e))
 
-    return errstr
+    return repo
 
 
-@app.route("/commit", methods=["POST"])
-def post_text():
-    errstr = []
+def git_commit_repo(repo, repopath, filename, filedata):
+    if isinstance(filedata, bytes):
+        filedata = filedata.decode("utf-8")
 
-    content = request.data.decode("utf-8")
-    content = unquote(content)
+    with open(repopath + "/" + filename, "w") as f:
+        f.write(filedata)
 
-    fileheader = content.split("\n")[0].replace("#", "")
-    filename = fileheader.split(":")[0]
-    fileuser = fileheader.split(":")[1]
-    filepath = os.path.join(GIT_REPO, filename)
-    filedata = content
+    repo.index.add([filename])
+    repo.index.commit(f"{filename}")
+
+    return True
+
+
+@app.route("/commit/<filename>", methods=["PUT"])
+def put(filename):
+    if not request.headers["Content-Type"] == "application/gzip":
+        return "Unsupported Media Type", 415
+
+    reqdata = request.data
 
     try:
-        errstr = git_check_repo(GIT_REPO)
-
-        if errstr:
-            return "\n".join(errstr), 500
-
-        with open(filepath, "w") as f:
-            f.write(filedata)
-
-        repo = Repo(GIT_REPO)
-        repo.index.add([filename])
-        repo.index.commit(f"{fileuser}")
-
+        filedata = gzip.decompress(reqdata)
     except Exception as e:
-        errstr.append(str(e))
+        return str(e), 400
 
-    if errstr:
-        return "\n".join(errstr), 500
+    print(f"Received file: {filename}")
+
+    filename = filename.replace(".gz", "")
+
+    try:
+        repo = git_check_repo(GIT_REPO)
+        git_commit_repo(repo, GIT_REPO, filename, filedata)
+    except GitError as e:
+        print(f"Error: {e}")
+        return str(e), 400
 
     return "OK", 200
 
