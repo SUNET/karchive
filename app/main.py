@@ -1,5 +1,5 @@
+import re
 import gzip
-import os
 from logging.config import dictConfig
 
 from flask import Flask, request
@@ -27,26 +27,15 @@ dictConfig(
 app = Flask(__name__)
 GIT_REPO = "/repo"
 
+try:
+    repo = Repo(GIT_REPO)
+except Exception as e:
+    app.logger.error(f"Error: {e}")
+    exit(1)
+
 
 class GitError(Exception):
     pass
-
-
-def git_check_repo(repopath):
-    repo = None
-
-    if not os.path.exists(repopath):
-        raise GitError("Repository does not exist")
-
-    try:
-        repo = Repo(repopath)
-
-        if repo.is_dirty():
-            raise GitError("Repository is dirty")
-    except Exception as e:
-        raise GitError(str(e))
-
-    return repo
 
 
 def git_commit_repo(repo, repopath, filename, filedata):
@@ -57,13 +46,18 @@ def git_commit_repo(repo, repopath, filename, filedata):
         f.write(filedata)
 
     repo.index.add([filename])
+    app.logger.info(f"File added to index: {filename} in repo {repopath}")
+
     repo.index.commit(f"{filename}")
+    app.logger.info(f"File committed: {filename} in repo {repopath}")
 
     return True
 
 
 @app.route("/commit/<filename>", methods=["PUT"])
 def put(filename):
+    re_strip = re.compile(r"_\.*\d{8}_\d{6}")
+
     try:
         filedata = gzip.decompress(request.data)
     except Exception as e:
@@ -73,13 +67,13 @@ def put(filename):
     app.logger.info(f"Received file: {filename}")
 
     filename = filename.replace(".gz", "")
+    filename = filename.replace("-re0", "")
+    filename = filename.replace("-re1", "")
+    filename = filename.replace("_juniper", "")
+    filename = re.sub(re_strip, "", filename)
 
     try:
-        repo = git_check_repo(GIT_REPO)
-        app.logger.info(f"Repository checked: {GIT_REPO}")
-
         git_commit_repo(repo, GIT_REPO, filename, filedata)
-        app.logger.info(f"File committed: {filename}")
     except GitError as e:
         app.logger.error(f"Error: {e}")
         return "Error", 400

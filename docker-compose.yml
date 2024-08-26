@@ -2,10 +2,12 @@
 services:
   app:
     build: app/
-    ports:
-      - "8080:8080"
     volumes:
       - ./repo:/repo
-    environment:
-      FLASK_ENV: development
-    
+  nginx:    
+    build: nginx/
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt/archive/zoomie.sunet.se/:/ssl
