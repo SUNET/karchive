@@ -1,4 +1,0 @@
-#router1:user1
-data1
-data2
-data3

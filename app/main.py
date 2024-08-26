@@ -1,11 +1,31 @@
 import gzip
 import os
+from logging.config import dictConfig
 
 from flask import Flask, request
 from git import Repo
 
+dictConfig(
+    {
+        "version": 1,
+        "formatters": {
+            "default": {
+                "format": "[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+            }
+        },
+        "handlers": {
+            "wsgi": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://flask.logging.wsgi_errors_stream",
+                "formatter": "default",
+            }
+        },
+        "root": {"level": "INFO", "handlers": ["wsgi"]},
+    }
+)
+
 app = Flask(__name__)
-GIT_REPO = "./repo"
+GIT_REPO = "/repo"
 
 
 class GitError(Exception):
@@ -44,26 +64,25 @@ def git_commit_repo(repo, repopath, filename, filedata):
 
 @app.route("/commit/<filename>", methods=["PUT"])
 def put(filename):
-    if not request.headers["Content-Type"] == "application/gzip":
-        return "Unsupported Media Type", 415
-
-    reqdata = request.data
-
     try:
-        filedata = gzip.decompress(reqdata)
+        filedata = gzip.decompress(request.data)
     except Exception as e:
-        return str(e), 400
+        app.logger.error(f"Error: {e}")
+        return "Error", 400
 
-    print(f"Received file: {filename}")
+    app.logger.info(f"Received file: {filename}")
 
     filename = filename.replace(".gz", "")
 
     try:
         repo = git_check_repo(GIT_REPO)
+        app.logger.info(f"Repository checked: {GIT_REPO}")
+
         git_commit_repo(repo, GIT_REPO, filename, filedata)
+        app.logger.info(f"File committed: {filename}")
     except GitError as e:
-        print(f"Error: {e}")
-        return str(e), 400
+        app.logger.error(f"Error: {e}")
+        return "Error", 400
 
     return "OK", 200
 
