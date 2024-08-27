@@ -1,4 +1,6 @@
 import re
+import os
+import sys
 import gzip
 from logging.config import dictConfig
 
@@ -25,31 +27,53 @@ dictConfig(
 )
 
 app = Flask(__name__)
-GIT_REPO = "/repo"
-
-try:
-    repo = Repo(GIT_REPO)
-except Exception as e:
-    app.logger.error(f"Error: {e}")
-    exit(1)
 
 
 class GitError(Exception):
     pass
 
 
-def git_commit_repo(repo, repopath, filename, filedata):
-    if isinstance(filedata, bytes):
-        filedata = filedata.decode("utf-8")
+def git_clone_repo():
+    if not os.environ.get("GIT_REPO_URL"):
+        app.logger.error("GIT_REPO_URL environment variable not set")
+        sys.exit(1)
 
-    with open(repopath + "/" + filename, "w") as f:
-        f.write(filedata)
+    if not os.path.exists("/repo"):
+        repo_url = os.environ.get("GIT_REPO_URL")
 
-    repo.index.add([filename])
-    app.logger.info(f"File added to index: {filename} in repo {repopath}")
+    print(f"Cloning repo: {repo_url}")
 
-    repo.index.commit(f"{filename}")
-    app.logger.info(f"File committed: {filename} in repo {repopath}")
+    try:
+        repo = Repo.clone_from(repo_url, "/repo")
+    except Exception as e:
+        app.logger.error(f"Error: {e}")
+
+    app.logger.info(f"Repo cloned: {repo_url} in /repo")
+
+    return repo
+
+
+def git_commit_repo(filename, filedata):
+    try:
+        repo = Repo("/repo")
+
+        if isinstance(filedata, bytes):
+            filedata = filedata.decode("utf-8")
+
+        with open("/repo/" + filename, "w") as f:
+            f.write(filedata)
+
+        repo.index.add([filename])
+        app.logger.info(f"File added to index: {filename} in repo /repo")
+
+        repo.index.commit(f"{filename}")
+        app.logger.info(f"File committed: {filename} in repo /repo")
+
+        repo.remotes.origin.push()
+        app.logger.info(f"File pushed: {filename} in repo /repo")
+    except Exception as e:
+        app.logger.error(f"Error: {e}")
+        sys.exit(1)
 
     return True
 
@@ -73,7 +97,7 @@ def put(filename):
     filename = re.sub(re_strip, "", filename)
 
     try:
-        git_commit_repo(repo, GIT_REPO, filename, filedata)
+        git_commit_repo(filename, filedata)
     except GitError as e:
         app.logger.error(f"Error: {e}")
         return "Error", 400
@@ -82,4 +106,7 @@ def put(filename):
 
 
 if __name__ == "__main__":
+    git_clone_repo()
     app.run(debug=True)
+else:
+    git_clone_repo()

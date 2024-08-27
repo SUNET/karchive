@@ -2,12 +2,14 @@
 services:
   app:
     build: app/
+    environment:
+      - GIT_REPO_URL=
     volumes:
-      - ./repo:/repo
+      - ~/.ssh:/root/.ssh
   nginx:    
     build: nginx/
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - /etc/letsencrypt/archive/zoomie.sunet.se/:/ssl
+      - /etc/letsencrypt/archive/host.name.com/:/ssl
