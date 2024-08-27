@@ -4,6 +4,10 @@ KArchive
 Webserver and backend which accepts PUT requests to store files in Git
 repositories. Intended to use together with JunOS archive.
 
+### Install:
+
+The environment variable `GIT_REPO_URL` must be set to the path of the git:
+
 ### Configure JunOS:
 
 ```

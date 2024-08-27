@@ -1,9 +1,8 @@
-# Compose file
 services:
   app:
     build: app/
     environment:
-      - GIT_REPO_URL=
+      - GIT_REPO_URL=ssh://git@platform.sunet.se:22022/khn/configtest.git
     volumes:
       - ~/.ssh:/root/.ssh
   nginx:    
@@ -12,4 +11,4 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /etc/letsencrypt/archive/host.name.com/:/ssl
+      - /etc/letsencrypt/archive/zoomie.sunet.se/:/ssl

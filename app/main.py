@@ -53,7 +53,7 @@ def git_clone_repo():
     return repo
 
 
-def git_commit_repo(filename, filedata):
+def git_commit_repo(filename, filedata, username):
     try:
         repo = Repo("/repo")
 
@@ -63,10 +63,13 @@ def git_commit_repo(filename, filedata):
         with open("/repo/" + filename, "w") as f:
             f.write(filedata)
 
+        repo.config_writer().set_value("user", "name", username).release()
+        repo.config_writer().set_value("user", "email", "noc@sunet.se").release()
+
         repo.index.add([filename])
         app.logger.info(f"File added to index: {filename} in repo /repo")
 
-        repo.index.commit(f"{filename}")
+        repo.index.commit(f"Configuration changed by: {username}")
         app.logger.info(f"File committed: {filename} in repo /repo")
 
         repo.remotes.origin.push()
@@ -84,6 +87,16 @@ def put(filename):
 
     try:
         filedata = gzip.decompress(request.data)
+
+        # Header is in the format /* Commit annotation; dennis:  */ get the username
+        username = re.search(
+            r".+;.(\S+):.+", filedata.decode("utf-8").split("\n")[1]
+        ).group(1)
+
+        if not username:
+            app.logger.error("Username not found in header")
+            username = "Unknown"
+
     except Exception as e:
         app.logger.error(f"Error: {e}")
         return "Error", 400
@@ -97,7 +110,7 @@ def put(filename):
     filename = re.sub(re_strip, "", filename)
 
     try:
-        git_commit_repo(filename, filedata)
+        git_commit_repo(filename, filedata, username)
     except GitError as e:
         app.logger.error(f"Error: {e}")
         return "Error", 400
