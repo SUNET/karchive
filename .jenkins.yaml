@@ -1,0 +1,22 @@
+#
+# Jenkins pipeline for karchive
+#
+
+disabled: false
+
+git:
+  branch: main
+  extensions:
+    shallow_clone: true
+
+extra_jobs:
+  - name: karchive
+    git:
+      branch: main
+    builders:
+      - docker
+    docker_name: karchive
+    docker_context_dir: nginx/
+    docker_tags:
+      - "1.0"
+    
