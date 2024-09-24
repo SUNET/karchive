@@ -10,13 +10,22 @@ git:
     shallow_clone: true
 
 extra_jobs:
-  - name: karchive
+  - name: karchive-nginx
     git:
       branch: main
     builders:
       - docker
-    docker_name: karchive
+    docker_name: karchive/nginx
     docker_context_dir: nginx/
     docker_tags:
       - "1.0"
-    
+
+  - name: karchive-app
+    git:
+      branch: main
+    builders:
+      - docker
+    docker_name: karchive/app
+    docker_context_dir: app/
+    docker_tags:
+      - "1.0"
